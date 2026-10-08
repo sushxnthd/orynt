@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { assertCan } from "@/lib/auth/policy";
 import { getRequestSession } from "@/lib/auth/request";
+import { getCommandData } from "@/lib/data/command";
 import { getDb } from "@/lib/db/client";
 import { auditEvents, interventionEvents, interventions } from "@/lib/db/schema";
 
@@ -15,6 +16,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid outcome", details: parsed.error.flatten() }, { status: 400 });
   const { id } = await params;
+  const visible = await getCommandData(session.tenantId, session);
+  if (!visible.interventions.some((item) => item.id === id)) return NextResponse.json({ error: "Intervention not found in your authorized scope" }, { status: 404 });
+
   const db = getDb();
   const [before] = await db.select().from(interventions).where(and(eq(interventions.id, id), eq(interventions.tenantId, session.tenantId))).limit(1);
   if (!before) return NextResponse.json({ error: "Intervention not found" }, { status: 404 });
