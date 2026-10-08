@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { CsvImporter } from "@/components/csv-importer";
+import { requireServerAction } from "@/lib/auth/server";
 
 const connectors = [
   { name: "CSV", state: "ready", detail: "Preview, validate and commit roster or attendance files with lineage" },
@@ -11,7 +12,8 @@ const connectors = [
   { name: "ONVIF / VMS events", state: "planned", detail: "Vision event bridge; raw video stays local where possible" },
 ];
 
-export default function ConnectPage() {
+export default async function ConnectPage() {
+  await requireServerAction("import:write");
   return (
     <AppShell title="Orynt Connect">
       <div className="pageHeader"><div><div className="eyebrow">Data plane</div><h1 className="pageTitle">Connect before you replace</h1><p className="pageSubtitle">Orynt sits above existing systems first. Imports are mapped, validated, lineage-tracked and repeatable.</p></div></div>
