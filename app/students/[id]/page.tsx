@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function StudentPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireServerAction("student:read");
   const { id } = await params;
-  const data = await getStudentDetail(session.tenantId, id);
+  const data = await getStudentDetail(session.tenantId, id, session);
   if (!data) notFound();
   const { student } = data;
   const primarySignal = data.signals[0];
@@ -16,10 +16,10 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
 
   return (
     <AppShell title="Student 360">
-      <div className="pageHeader"><div><div className="eyebrow">{student.grade}{student.section} · Student 360</div><h1 className="pageTitle">{student.firstName} {student.lastName}</h1><p className="pageSubtitle">A joined view of current state, evidence, actions and follow-up. Every object is resolved inside the active tenant boundary.</p></div><span className={`badge ${risk}`}>{risk}</span></div>
+      <div className="pageHeader"><div><div className="eyebrow">{student.grade}{student.section} · Student 360</div><h1 className="pageTitle">{student.firstName} {student.lastName}</h1><p className="pageSubtitle">A joined view of current state, evidence, actions and follow-up, restricted to the signed role's authorized object scope.</p></div><span className={`badge ${risk}`}>{risk}</span></div>
       <div className="grid metrics">
         <section className="card metric"><div className="metricLabel">Attendance</div><div className="metricValue">{data.attendancePercent == null ? "—" : `${data.attendancePercent}%`}</div><div className="metricDelta muted">{data.attendance.length} recorded days</div></section>
-        <section className="card metric"><div className="metricLabel">Academic average</div><div className="metricValue">{data.averagePercent == null ? "—" : `${data.averagePercent}%`}</div><div className="metricDelta muted">{data.results.length} scored assessments</div></section>
+        <section className="card metric"><div className="metricLabel">Academic average</div><div className="metricValue">{data.averagePercent == null ? "—" : `${data.averagePercent}%`}</div><div className="metricDelta muted">{data.results.length} authorized scored assessments</div></section>
         <section className="card metric"><div className="metricLabel">Primary focus</div><div className="metricValue" style={{ fontSize: 18 }}>{primarySignal?.title ?? "No active signal"}</div><div className="metricDelta muted">Evidence-linked</div></section>
         <section className="card metric"><div className="metricLabel">Open actions</div><div className="metricValue">{data.interventions.filter((i) => i.status === "active" || i.status === "review_due").length}</div><div className="metricDelta warn">Human-owned interventions</div></section>
       </div>
