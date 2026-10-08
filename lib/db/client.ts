@@ -1,7 +1,9 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as schema from "./schema";
+import * as coreSchema from "./schema";
+import * as extendedSchema from "./extended-schema";
 
+const schema = { ...coreSchema, ...extendedSchema };
 let client: ReturnType<typeof postgres> | undefined;
 
 export function getDb() {
