@@ -1,14 +1,20 @@
 import Link from "next/link";
-import { Activity, BellRing, Database, Eye, GraduationCap, LayoutDashboard, LogOut, Network, Search, ShieldCheck, Users } from "lucide-react";
+import { Activity, BellRing, BookOpen, CalendarCheck, Database, Eye, FileText, GraduationCap, LayoutDashboard, LogOut, Network, Search, ShieldCheck, UserRound, Users, UsersRound, Workflow } from "lucide-react";
 import { can, type Action } from "@/lib/auth/policy";
 import { getServerSession } from "@/lib/auth/server";
 
 const nav: { href: string; label: string; icon: typeof LayoutDashboard; action: Action }[] = [
   { href: "/", label: "Command", icon: LayoutDashboard, action: "command:read" },
+  { href: "/academics", label: "Academics", icon: BookOpen, action: "academics:read" },
+  { href: "/attendance", label: "Attendance", icon: CalendarCheck, action: "attendance:read" },
   { href: "/students", label: "Students", icon: Users, action: "student:read" },
   { href: "/interventions", label: "Actions", icon: Activity, action: "intervention:read" },
+  { href: "/operations", label: "Operations", icon: Workflow, action: "operations:read" },
   { href: "/vision", label: "Vision", icon: Eye, action: "vision:read" },
+  { href: "/reports", label: "Reports", icon: FileText, action: "reports:read" },
   { href: "/graph", label: "Graph", icon: Network, action: "command:read" },
+  { href: "/me", label: "My Progress", icon: UserRound, action: "self:read" },
+  { href: "/family", label: "Family", icon: UsersRound, action: "dependent:read" },
 ];
 
 const system: { href: string; label: string; icon: typeof Database; action: Action }[] = [
