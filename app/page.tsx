@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { AskOrynt } from "@/components/ask-orynt";
-import { requireServerSession } from "@/lib/auth/server";
+import { requireServerAction } from "@/lib/auth/server";
 import { getCommandData } from "@/lib/data/command";
 
 export const dynamic = "force-dynamic";
 
 export default async function CommandPage() {
-  const session = await requireServerSession();
+  const session = await requireServerAction("command:read");
   const data = await getCommandData(session.tenantId);
   const metrics = [
     { label: "Latest attendance", value: data.metrics.attendance == null ? "—" : `${data.metrics.attendance}%`, delta: data.metrics.attendanceAsOf ? `As of ${data.metrics.attendanceAsOf}` : "No attendance imported", tone: "warn" },
