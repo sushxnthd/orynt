@@ -1,12 +1,12 @@
 import { AppShell } from "@/components/app-shell";
 import { InterventionForm } from "@/components/intervention-form";
-import { requireServerSession } from "@/lib/auth/server";
+import { requireServerAction } from "@/lib/auth/server";
 import { getCommandData } from "@/lib/data/command";
 
 export const dynamic = "force-dynamic";
 
 export default async function InterventionsPage() {
-  const session = await requireServerSession();
+  const session = await requireServerAction("intervention:read");
   const data = await getCommandData(session.tenantId);
   const active = data.interventions.filter((i) => i.status === "active" || i.status === "review_due").length;
   return (
