@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createSessionToken, SESSION_COOKIE } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/client";
 import { memberships, users } from "@/lib/db/schema";
-import type { Role } from "@/lib/auth/policy";
+import type { Role, Scope } from "@/lib/auth/policy";
 
 const bodySchema = z.object({ email: z.string().email(), password: z.string().min(8) });
 
@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
     role: row.membership.role,
     name: row.user.name,
     email: row.user.email,
+    scope: (row.membership.scope ?? {}) as Scope,
   });
   const response = NextResponse.json({ ok: true, role: row.membership.role, name: row.user.name, home: homeForRole(row.membership.role) });
   response.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 12 });
