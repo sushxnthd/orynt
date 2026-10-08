@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (q.includes("signal") || q.includes("risk") || q.includes("attention") || q.includes("why")) {
+    if (!can(session.role, "command:read")) return NextResponse.json({ error: "Your role cannot access school-wide signals" }, { status: 403 });
     const rows = await db.select().from(signals).where(eq(signals.tenantId, session.tenantId)).orderBy(desc(signals.generatedAt)).limit(10);
     return NextResponse.json({ mode: "deterministic", answer: `${rows.filter((r) => r.active).length} recent active signals were retrieved. Open a signal to inspect its rule version and evidence before acting.`, evidence: rows.map((r) => ({ type: "signal", id: r.id, label: `${r.title} · ${r.severity}`, explanation: r.explanation, ruleVersion: r.ruleVersion })) });
   }
@@ -44,5 +45,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ mode: "deterministic", answer: "I could not map that question to a supported authorized query yet. Try asking about current signals, interventions, students, or Vision events.", evidence: [] });
+  return NextResponse.json({ mode: "deterministic", answer: "I could not map that question to a supported authorized query yet. Try asking about a workspace your role can access.", evidence: [] });
 }
