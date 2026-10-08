@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: orynt
+          POSTGRES_PASSWORD: orynt
+          POSTGRES_DB: orynt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U orynt -d orynt"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://orynt:orynt@localhost:5432/orynt
+      SESSION_SECRET: ci-only-secret-change-in-production-orynt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - name: Apply schema
+        run: pnpm db:push --force
+      - name: Seed synthetic tenant
+        run: pnpm db:seed
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
