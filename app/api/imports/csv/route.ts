@@ -46,40 +46,47 @@ export async function POST(request: NextRequest) {
       ? remap(objects[i], ["externalId", "firstName", "lastName", "grade", "section", "admissionNumber"], mapping)
       : remap(objects[i], ["externalId", "day", "status"], mapping);
     const parsed = kind === "students" ? studentSchema.safeParse(raw) : attendanceSchema.safeParse(raw);
-    if (parsed.success) valid.push(parsed.data as Record<string, string>);
-    else errors.push({ row: i + 2, issues: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`) });
+    if (parsed.success) {
+      valid.push(Object.fromEntries(Object.entries(parsed.data).map(([key, value]) => [key, value ?? ""])));
+    } else {
+      errors.push({ row: i + 2, issues: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`) });
+    }
   }
 
   if (mode === "preview") return NextResponse.json({ kind, checksum, rows: objects.length, valid: valid.length, errors: errors.slice(0, 100), canCommit: valid.length > 0 && errors.length === 0 });
   if (errors.length) return NextResponse.json({ error: "Import contains invalid rows", errors: errors.slice(0, 100) }, { status: 400 });
 
   const db = getDb();
-  await db.transaction(async (tx) => {
-    if (kind === "students") {
-      for (const row of valid) {
-        await tx.insert(students).values({
-          tenantId: session.tenantId, externalId: row.externalId, admissionNumber: row.admissionNumber || undefined,
-          firstName: row.firstName, lastName: row.lastName, grade: row.grade, section: row.section,
-        }).onConflictDoUpdate({
-          target: [students.tenantId, students.externalId],
-          set: { admissionNumber: row.admissionNumber || undefined, firstName: row.firstName, lastName: row.lastName, grade: row.grade, section: row.section, updatedAt: new Date() },
-        });
+  try {
+    await db.transaction(async (tx) => {
+      if (kind === "students") {
+        for (const row of valid) {
+          await tx.insert(students).values({
+            tenantId: session.tenantId, externalId: row.externalId, admissionNumber: row.admissionNumber || undefined,
+            firstName: row.firstName, lastName: row.lastName, grade: row.grade, section: row.section,
+          }).onConflictDoUpdate({
+            target: [students.tenantId, students.externalId],
+            set: { admissionNumber: row.admissionNumber || undefined, firstName: row.firstName, lastName: row.lastName, grade: row.grade, section: row.section, updatedAt: new Date() },
+          });
+        }
+      } else {
+        const externalIds = [...new Set(valid.map((row) => row.externalId))];
+        const matched = await tx.select({ id: students.id, externalId: students.externalId }).from(students).where(and(eq(students.tenantId, session.tenantId), inArray(students.externalId, externalIds)));
+        const byExternal = new Map(matched.map((s) => [s.externalId, s.id]));
+        const missing = externalIds.filter((id) => !byExternal.has(id));
+        if (missing.length) throw new Error(`Unknown student external IDs: ${missing.slice(0, 10).join(", ")}`);
+        for (const row of valid) {
+          const studentId = byExternal.get(row.externalId)!;
+          await tx.insert(attendance).values({ tenantId: session.tenantId, studentId, day: row.day, status: row.status as "present" | "absent" | "late" | "excused", source: `csv:${file.name}` })
+            .onConflictDoUpdate({ target: [attendance.studentId, attendance.day], set: { status: row.status as "present" | "absent" | "late" | "excused", source: `csv:${file.name}`, updatedAt: new Date() } });
+        }
       }
-    } else {
-      const externalIds = [...new Set(valid.map((row) => row.externalId))];
-      const matched = await tx.select({ id: students.id, externalId: students.externalId }).from(students).where(and(eq(students.tenantId, session.tenantId), inArray(students.externalId, externalIds)));
-      const byExternal = new Map(matched.map((s) => [s.externalId, s.id]));
-      const missing = externalIds.filter((id) => !byExternal.has(id));
-      if (missing.length) throw new Error(`Unknown student external IDs: ${missing.slice(0, 10).join(", ")}`);
-      for (const row of valid) {
-        const studentId = byExternal.get(row.externalId)!;
-        await tx.insert(attendance).values({ tenantId: session.tenantId, studentId, day: row.day, status: row.status as "present" | "absent" | "late" | "excused", source: `csv:${file.name}` })
-          .onConflictDoUpdate({ target: [attendance.studentId, attendance.day], set: { status: row.status as "present" | "absent" | "late" | "excused", source: `csv:${file.name}`, updatedAt: new Date() } });
-      }
-    }
-    const [record] = await tx.insert(imports).values({ tenantId: session.tenantId, kind, filename: file.name, status: "committed", rowCount: valid.length, errorCount: 0, mapping, checksum, createdByUserId: session.userId }).returning();
-    await tx.insert(auditEvents).values({ tenantId: session.tenantId, actorUserId: session.userId, action: "import.commit", entityType: "import", entityId: record.id, reason: `${kind} CSV import`, after: { filename: file.name, checksum, rows: valid.length } });
-  });
+      const [record] = await tx.insert(imports).values({ tenantId: session.tenantId, kind, filename: file.name, status: "committed", rowCount: valid.length, errorCount: 0, mapping, checksum, createdByUserId: session.userId }).returning();
+      await tx.insert(auditEvents).values({ tenantId: session.tenantId, actorUserId: session.userId, action: "import.commit", entityType: "import", entityId: record.id, reason: `${kind} CSV import`, after: { filename: file.name, checksum, rows: valid.length } });
+    });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Import commit failed" }, { status: 400 });
+  }
 
   return NextResponse.json({ ok: true, kind, checksum, committed: valid.length });
 }
