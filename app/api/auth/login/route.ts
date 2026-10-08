@@ -5,8 +5,18 @@ import { z } from "zod";
 import { createSessionToken, SESSION_COOKIE } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/client";
 import { memberships, users } from "@/lib/db/schema";
+import type { Role } from "@/lib/auth/policy";
 
 const bodySchema = z.object({ email: z.string().email(), password: z.string().min(8) });
+
+function homeForRole(role: Role) {
+  if (role === "student") return "/me";
+  if (role === "parent") return "/family";
+  if (role === "teacher") return "/academics";
+  if (role === "counselor") return "/students";
+  if (role === "it_admin") return "/connect";
+  return "/";
+}
 
 export async function POST(request: NextRequest) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
@@ -31,7 +41,7 @@ export async function POST(request: NextRequest) {
     name: row.user.name,
     email: row.user.email,
   });
-  const response = NextResponse.json({ ok: true, role: row.membership.role, name: row.user.name });
+  const response = NextResponse.json({ ok: true, role: row.membership.role, name: row.user.name, home: homeForRole(row.membership.role) });
   response.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 12 });
   return response;
 }
