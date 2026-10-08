@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, BellRing, BookOpen, CalendarCheck, Database, Eye, FileText, GraduationCap, LayoutDashboard, LogOut, Network, Search, ShieldCheck, UserRound, Users, UsersRound, Workflow } from "lucide-react";
+import { Activity, BellRing, BookOpen, CalendarCheck, Database, Eye, FileText, Gauge, GraduationCap, LayoutDashboard, LogOut, Network, Search, ShieldCheck, UserRound, Users, UsersRound, Workflow } from "lucide-react";
 import { can, type Action } from "@/lib/auth/policy";
 import { getServerSession } from "@/lib/auth/server";
 
@@ -12,6 +12,7 @@ const nav: { href: string; label: string; icon: typeof LayoutDashboard; action: 
   { href: "/operations", label: "Operations", icon: Workflow, action: "operations:read" },
   { href: "/vision", label: "Vision", icon: Eye, action: "vision:read" },
   { href: "/reports", label: "Reports", icon: FileText, action: "reports:read" },
+  { href: "/forecast", label: "Scenario Lab", icon: Gauge, action: "reports:read" },
   { href: "/graph", label: "Graph", icon: Network, action: "command:read" },
   { href: "/me", label: "My Progress", icon: UserRound, action: "self:read" },
   { href: "/family", label: "Family", icon: UsersRound, action: "dependent:read" },
