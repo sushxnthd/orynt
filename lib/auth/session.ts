@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
-import type { Role } from "./policy";
+import type { Role, Scope } from "./policy";
 
 export const SESSION_COOKIE = "orynt_session";
 
@@ -9,6 +9,7 @@ export type Session = {
   role: Role;
   name: string;
   email: string;
+  scope: Scope;
 };
 
 function key() {
@@ -29,5 +30,6 @@ export async function createSessionToken(session: Session) {
 
 export async function verifySessionToken(token: string): Promise<Session> {
   const { payload } = await jwtVerify(token, key(), { issuer: "orynt", audience: "orynt-web" });
-  return payload as unknown as Session;
+  const session = payload as unknown as Session;
+  return { ...session, scope: session.scope ?? {} };
 }
