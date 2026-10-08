@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { AskOrynt } from "@/components/ask-orynt";
 import { demoInterventions, demoSchool, demoSignals, demoStudents } from "@/lib/demo";
 
 export default function CommandPage() {
@@ -11,7 +12,7 @@ export default function CommandPage() {
           <h1 className="pageTitle">What needs attention today?</h1>
           <p className="pageSubtitle">Orynt prioritizes exceptions that can lead to an authorized action. Every material signal retains its evidence and rule provenance.</p>
         </div>
-        <div className="searchBox">Ask Orynt: “Why did 12C Chemistry fall?”</div>
+        <AskOrynt />
       </div>
 
       <div className="grid metrics">
