@@ -8,18 +8,18 @@ export const dynamic = "force-dynamic";
 
 export default async function CommandPage() {
   const session = await requireServerAction("command:read");
-  const data = await getCommandData(session.tenantId);
+  const data = await getCommandData(session.tenantId, session);
   const metrics = [
     { label: "Latest attendance", value: data.metrics.attendance == null ? "—" : `${data.metrics.attendance}%`, delta: data.metrics.attendanceAsOf ? `As of ${data.metrics.attendanceAsOf}` : "No attendance imported", tone: "warn" },
-    { label: "Students needing action", value: String(data.metrics.actionSignals), delta: "Active action/critical signals", tone: data.metrics.actionSignals ? "bad" : "good" },
-    { label: "Active interventions", value: String(data.metrics.activeInterventions), delta: "Active + review due", tone: "good" },
-    { label: "Assessment readiness", value: data.metrics.assessmentReadiness == null ? "—" : `${data.metrics.assessmentReadiness}%`, delta: "Observed scored assessments", tone: "good" },
+    { label: "Students needing action", value: String(data.metrics.actionSignals), delta: "Active action/critical signals in scope", tone: data.metrics.actionSignals ? "bad" : "good" },
+    { label: "Active interventions", value: String(data.metrics.activeInterventions), delta: "Active + review due in scope", tone: "good" },
+    { label: "Assessment readiness", value: data.metrics.assessmentReadiness == null ? "—" : `${data.metrics.assessmentReadiness}%`, delta: "Authorized scored assessments", tone: "good" },
   ];
 
   return (
     <AppShell title="School Command">
       <div className="pageHeader">
-        <div><div className="eyebrow">Daily operating picture</div><h1 className="pageTitle">What needs attention today?</h1><p className="pageSubtitle">Orynt prioritizes exceptions that can lead to an authorized action. Every material signal retains its evidence and rule provenance.</p></div>
+        <div><div className="eyebrow">Daily operating picture</div><h1 className="pageTitle">What needs attention today?</h1><p className="pageSubtitle">Orynt prioritizes exceptions that can lead to an authorized action. Every material signal retains its evidence and rule provenance, and configured object scope is applied before aggregation.</p></div>
         <AskOrynt />
       </div>
 
@@ -28,12 +28,12 @@ export default async function CommandPage() {
       <div className="grid twoCol">
         <section className="card">
           <div className="sectionHead"><h2 className="sectionTitle">Priority signals</h2><span className="sectionMeta">{data.metrics.actionSignals} require action</span></div>
-          {data.signals.length ? data.signals.map((s) => <article className="signal" key={s.id}><div className="signalTop"><div><h3>{s.title}</h3><p>{s.explanation}</p></div><span className={`badge ${s.severity}`}>{s.severity}</span></div><div className="evidence">{s.evidence.map((e) => <span key={e.id}>{e.label}{e.value ? `: ${e.value}` : ""}</span>)}</div></article>) : <div className="signal"><div className="emptyNote">No signals have been generated for this tenant yet.</div></div>}
+          {data.signals.length ? data.signals.map((s) => <article className="signal" key={s.id}><div className="signalTop"><div><h3>{s.title}</h3><p>{s.explanation}</p></div><span className={`badge ${s.severity}`}>{s.severity}</span></div><div className="evidence">{s.evidence.map((e) => <span key={e.id}>{e.label}{e.value ? `: ${e.value}` : ""}</span>)}</div></article>) : <div className="signal"><div className="emptyNote">No signals are available in your authorized scope.</div></div>}
         </section>
 
         <section className="card">
           <div className="sectionHead"><h2 className="sectionTitle">Interventions</h2><Link href="/interventions" className="sectionMeta">Open action center →</Link></div>
-          {data.interventions.length ? data.interventions.map((i) => <div className="signal" key={i.id}><div className="signalTop"><h3>{i.title}</h3><span className={`badge ${i.status}`}>{i.status.replace("_", " ")}</span></div><p>{i.studentCount} students · {i.successMetric ?? "success metric not set"}</p><div className="evidence"><span>{i.outcomeValue ? `Outcome ${i.outcomeValue}` : "Outcome pending"}</span></div></div>) : <div className="signal"><div className="emptyNote">No interventions yet.</div></div>}
+          {data.interventions.length ? data.interventions.map((i) => <div className="signal" key={i.id}><div className="signalTop"><h3>{i.title}</h3><span className={`badge ${i.status}`}>{i.status.replace("_", " ")}</span></div><p>{i.studentCount} students · {i.successMetric ?? "success metric not set"}</p><div className="evidence"><span>{i.outcomeValue ? `Outcome ${i.outcomeValue}` : "Outcome pending"}</span></div></div>) : <div className="signal"><div className="emptyNote">No interventions are available in your authorized scope.</div></div>}
         </section>
       </div>
 
