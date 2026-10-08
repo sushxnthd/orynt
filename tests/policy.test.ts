@@ -10,14 +10,21 @@ describe("Orynt policy", () => {
     expect(can("principal", "vision:review")).toBe(true);
   });
 
+  it("separates command-center access from generic school metadata", () => {
+    expect(can("principal", "command:read")).toBe(true);
+    expect(can("teacher", "command:read")).toBe(false);
+    expect(can("parent", "command:read")).toBe(false);
+  });
+
   it("enforces grade scope", () => {
     expect(scopeAllows({ grades: ["9", "10"] }, { grade: "10" })).toBe(true);
     expect(scopeAllows({ grades: ["9", "10"] }, { grade: "12" })).toBe(false);
   });
 
-  it("keeps parent permissions narrow", () => {
-    expect(can("parent", "student:read")).toBe(true);
+  it("does not grant broad student records to parent/student roles before relationship scoping exists", () => {
+    expect(can("parent", "student:read")).toBe(false);
     expect(can("parent", "student:sensitive-read")).toBe(false);
-    expect(can("parent", "assessment:write")).toBe(false);
+    expect(can("parent", "intervention:read")).toBe(false);
+    expect(can("student", "student:read")).toBe(false);
   });
 });
