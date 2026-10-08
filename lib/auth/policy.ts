@@ -12,6 +12,10 @@ export type Role =
 export type Action =
   | "school:read"
   | "command:read"
+  | "academics:read"
+  | "attendance:read"
+  | "operations:read"
+  | "reports:read"
   | "student:read"
   | "student:sensitive-read"
   | "assessment:write"
@@ -23,20 +27,22 @@ export type Action =
   | "vision:review"
   | "import:write"
   | "audit:read"
-  | "settings:write";
+  | "settings:write"
+  | "self:read"
+  | "dependent:read";
+
+const full: Action[] = ["school:read", "command:read", "academics:read", "attendance:read", "operations:read", "reports:read", "student:read", "student:sensitive-read", "assessment:write", "attendance:write", "intervention:read", "intervention:write", "intervention:close", "vision:read", "vision:review", "import:write", "audit:read", "settings:write"];
 
 const permissions: Record<Role, ReadonlySet<Action>> = {
-  super_admin: new Set(["school:read", "command:read", "student:read", "student:sensitive-read", "assessment:write", "attendance:write", "intervention:read", "intervention:write", "intervention:close", "vision:read", "vision:review", "import:write", "audit:read", "settings:write"]),
-  school_admin: new Set(["school:read", "command:read", "student:read", "student:sensitive-read", "assessment:write", "attendance:write", "intervention:read", "intervention:write", "intervention:close", "vision:read", "vision:review", "import:write", "audit:read", "settings:write"]),
-  principal: new Set(["school:read", "command:read", "student:read", "student:sensitive-read", "intervention:read", "intervention:write", "intervention:close", "vision:read", "vision:review", "audit:read"]),
-  coordinator: new Set(["school:read", "command:read", "student:read", "student:sensitive-read", "assessment:write", "attendance:write", "intervention:read", "intervention:write", "intervention:close"]),
-  teacher: new Set(["school:read", "student:read", "assessment:write", "attendance:write", "intervention:read", "intervention:write"]),
-  counselor: new Set(["school:read", "student:read", "student:sensitive-read", "intervention:read", "intervention:write", "intervention:close"]),
-  it_admin: new Set(["school:read", "import:write", "audit:read", "settings:write", "vision:read"]),
-  // Student/parent portals require explicit self/dependent relationship tables before they are enabled.
-  // Until that exists, these roles intentionally receive no broad student/intervention permissions.
-  student: new Set(["school:read"]),
-  parent: new Set(["school:read"]),
+  super_admin: new Set(full),
+  school_admin: new Set(full),
+  principal: new Set(["school:read", "command:read", "academics:read", "attendance:read", "operations:read", "reports:read", "student:read", "student:sensitive-read", "intervention:read", "intervention:write", "intervention:close", "vision:read", "vision:review", "audit:read"]),
+  coordinator: new Set(["school:read", "command:read", "academics:read", "attendance:read", "operations:read", "reports:read", "student:read", "student:sensitive-read", "assessment:write", "attendance:write", "intervention:read", "intervention:write", "intervention:close"]),
+  teacher: new Set(["school:read", "academics:read", "attendance:read", "operations:read", "student:read", "assessment:write", "attendance:write", "intervention:read", "intervention:write"]),
+  counselor: new Set(["school:read", "attendance:read", "student:read", "student:sensitive-read", "intervention:read", "intervention:write", "intervention:close"]),
+  it_admin: new Set(["school:read", "operations:read", "import:write", "audit:read", "settings:write", "vision:read"]),
+  student: new Set(["school:read", "self:read"]),
+  parent: new Set(["school:read", "dependent:read"]),
 };
 
 export function can(role: Role, action: Action): boolean {
