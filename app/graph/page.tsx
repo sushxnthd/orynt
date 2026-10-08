@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell";
+import { requireServerAction } from "@/lib/auth/server";
 
 const nodes = [
   ["Student", "attendance · results · interventions"],
@@ -11,7 +12,8 @@ const nodes = [
   ["Vision event", "zone · event · review"],
 ] as const;
 
-export default function GraphPage() {
+export default async function GraphPage() {
+  await requireServerAction("command:read");
   return (
     <AppShell title="School Graph">
       <div className="pageHeader"><div><div className="eyebrow">Ontology</div><h1 className="pageTitle">One operating model of the school</h1><p className="pageSubtitle">Orynt connects records by meaning and relationship, not merely by dashboard. Every action and explanation can traverse this graph subject to permissions.</p></div></div>
