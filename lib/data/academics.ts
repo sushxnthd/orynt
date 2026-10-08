@@ -1,12 +1,14 @@
 import "server-only";
 import { eq } from "drizzle-orm";
+import type { ScopedIdentity } from "@/lib/auth/scope";
+import { accessAllows } from "@/lib/auth/scope";
 import { getDb } from "@/lib/db/client";
 import { assessments, classes, concepts, courseOfferings, results, staff, subjects } from "@/lib/db/schema";
 import { assignments, assignmentSubmissions, syllabusProgress } from "@/lib/db/extended-schema";
 
-export async function getAcademicsData(tenantId: string) {
+export async function getAcademicsData(tenantId: string, identity?: ScopedIdentity) {
   const db = getDb();
-  const [courses, classRows, subjectRows, staffRows, assessmentRows, resultRows, conceptRows, progressRows, assignmentRows, submissionRows] = await Promise.all([
+  const [allCourses, classRows, subjectRows, staffRows, allAssessments, allResults, conceptRows, allProgress, allAssignments, allSubmissions] = await Promise.all([
     db.select().from(courseOfferings).where(eq(courseOfferings.tenantId, tenantId)),
     db.select().from(classes).where(eq(classes.tenantId, tenantId)),
     db.select().from(subjects).where(eq(subjects.tenantId, tenantId)),
@@ -22,6 +24,19 @@ export async function getAcademicsData(tenantId: string) {
   const classById = new Map(classRows.map((row) => [row.id, row]));
   const subjectById = new Map(subjectRows.map((row) => [row.id, row]));
   const staffById = new Map(staffRows.map((row) => [row.id, row]));
+  const courses = identity ? allCourses.filter((course) => {
+    const cls = classById.get(course.classId);
+    return accessAllows(identity, { grade: cls?.grade, classId: course.classId, subjectId: course.subjectId });
+  }) : allCourses;
+  const courseIds = new Set(courses.map((course) => course.id));
+  const assessmentRows = allAssessments.filter((row) => courseIds.has(row.courseOfferingId));
+  const assessmentIds = new Set(assessmentRows.map((row) => row.id));
+  const resultRows = allResults.filter((row) => assessmentIds.has(row.assessmentId));
+  const progressRows = allProgress.filter((row) => courseIds.has(row.courseOfferingId));
+  const assignmentRows = allAssignments.filter((row) => courseIds.has(row.courseOfferingId));
+  const assignmentIds = new Set(assignmentRows.map((row) => row.id));
+  const submissionRows = allSubmissions.filter((row) => assignmentIds.has(row.assignmentId));
+
   const assessmentById = new Map(assessmentRows.map((row) => [row.id, row]));
   const conceptById = new Map(conceptRows.map((row) => [row.id, row]));
   const submissionsByAssignment = new Map<string, typeof submissionRows>();
@@ -32,8 +47,8 @@ export async function getAcademicsData(tenantId: string) {
     const subject = subjectById.get(course.subjectId);
     const teacher = course.teacherStaffId ? staffById.get(course.teacherStaffId) : undefined;
     const courseAssessments = assessmentRows.filter((a) => a.courseOfferingId === course.id);
-    const assessmentIds = new Set(courseAssessments.map((a) => a.id));
-    const percentages = resultRows.filter((r) => assessmentIds.has(r.assessmentId) && !r.absent).map((r) => {
+    const courseAssessmentIds = new Set(courseAssessments.map((a) => a.id));
+    const percentages = resultRows.filter((r) => courseAssessmentIds.has(r.assessmentId) && !r.absent).map((r) => {
       const assessment = assessmentById.get(r.assessmentId);
       return assessment && Number(assessment.maxScore) > 0 ? (Number(r.score) / Number(assessment.maxScore)) * 100 : NaN;
     }).filter(Number.isFinite);
@@ -64,11 +79,14 @@ export async function getAcademicsData(tenantId: string) {
       status: row.status,
       evidence: row.evidence,
     })),
-    assessments: assessmentRows.map((assessment) => ({
-      ...assessment,
-      className: classById.get(courses.find((c) => c.id === assessment.courseOfferingId)?.classId ?? "")?.name ?? "Unknown",
-      subject: subjectById.get(courses.find((c) => c.id === assessment.courseOfferingId)?.subjectId ?? "")?.name ?? "Unknown",
-    })),
+    assessments: assessmentRows.map((assessment) => {
+      const course = courses.find((c) => c.id === assessment.courseOfferingId);
+      return {
+        ...assessment,
+        className: classById.get(course?.classId ?? "")?.name ?? "Unknown",
+        subject: subjectById.get(course?.subjectId ?? "")?.name ?? "Unknown",
+      };
+    }),
     assignments: assignmentRows.map((assignment) => ({
       ...assignment,
       concept: assignment.conceptId ? conceptById.get(assignment.conceptId)?.name ?? null : null,
