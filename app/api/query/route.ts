@@ -1,4 +1,4 @@
-import { desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { assertCan, can } from "@/lib/auth/policy";
@@ -37,9 +37,11 @@ export async function POST(request: NextRequest) {
   const words = q.split(/\s+/).filter((word) => word.length >= 3).slice(0, 4);
   if (words.length && can(session.role, "student:read")) {
     const conditions = words.flatMap((word) => [ilike(students.firstName, `%${word}%`), ilike(students.lastName, `%${word}%`)]);
-    const rows = await db.select({ id: students.id, firstName: students.firstName, lastName: students.lastName, grade: students.grade, section: students.section }).from(students).where(or(eq(students.tenantId, session.tenantId), ...conditions)).limit(10);
-    const scoped = rows.filter((row) => row.id && row).slice(0, 10);
-    if (scoped.length) return NextResponse.json({ mode: "deterministic", answer: `Found ${scoped.length} student records related to the query.`, evidence: scoped.map((r) => ({ type: "student", id: r.id, label: `${r.firstName} ${r.lastName} · ${r.grade}${r.section}` })) });
+    const nameMatch = or(...conditions);
+    if (nameMatch) {
+      const rows = await db.select({ id: students.id, firstName: students.firstName, lastName: students.lastName, grade: students.grade, section: students.section }).from(students).where(and(eq(students.tenantId, session.tenantId), nameMatch)).limit(10);
+      if (rows.length) return NextResponse.json({ mode: "deterministic", answer: `Found ${rows.length} student records related to the query.`, evidence: rows.map((r) => ({ type: "student", id: r.id, label: `${r.firstName} ${r.lastName} · ${r.grade}${r.section}` })) });
+    }
   }
 
   return NextResponse.json({ mode: "deterministic", answer: "I could not map that question to a supported authorized query yet. Try asking about current signals, interventions, students, or Vision events.", evidence: [] });
