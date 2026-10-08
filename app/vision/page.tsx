@@ -1,12 +1,12 @@
 import { AppShell } from "@/components/app-shell";
 import { VisionReview } from "@/components/vision-review";
-import { requireServerSession } from "@/lib/auth/server";
+import { requireServerAction } from "@/lib/auth/server";
 import { getVisionData } from "@/lib/data/vision";
 
 export const dynamic = "force-dynamic";
 
 export default async function VisionPage() {
-  const session = await requireServerSession();
+  const session = await requireServerAction("vision:read");
   const data = await getVisionData(session.tenantId);
   return (
     <AppShell title="Orynt Vision">
