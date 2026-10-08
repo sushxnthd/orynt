@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
-import { requireServerSession } from "@/lib/auth/server";
+import { requireServerAction } from "@/lib/auth/server";
 import { getStudentDetail } from "@/lib/data/student";
 
 export const dynamic = "force-dynamic";
 
 export default async function StudentPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requireServerSession();
+  const session = await requireServerAction("student:read");
   const { id } = await params;
   const data = await getStudentDetail(session.tenantId, id);
   if (!data) notFound();
