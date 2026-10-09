@@ -31,104 +31,29 @@ export type Action =
   | "import:write"
   | "audit:read"
   | "settings:write"
+  | "aip:use"
+  | "forecast:read"
+  | "studio:read"
+  | "studio:write"
+  | "connector:manage"
   | "self:read"
   | "dependent:read";
 
 const full: Action[] = [
-  "school:read",
-  "command:read",
-  "academics:read",
-  "academics:write",
-  "attendance:read",
-  "operations:read",
-  "operations:write",
-  "meeting:write",
-  "reports:read",
-  "student:read",
-  "student:sensitive-read",
-  "assessment:write",
-  "attendance:write",
-  "intervention:read",
-  "intervention:write",
-  "intervention:close",
-  "vision:read",
-  "vision:review",
-  "import:write",
-  "audit:read",
-  "settings:write",
+  "school:read", "command:read", "academics:read", "academics:write", "attendance:read", "operations:read", "operations:write", "meeting:write",
+  "reports:read", "student:read", "student:sensitive-read", "assessment:write", "attendance:write", "intervention:read", "intervention:write",
+  "intervention:close", "vision:read", "vision:review", "import:write", "audit:read", "settings:write", "aip:use", "forecast:read", "studio:read",
+  "studio:write", "connector:manage",
 ];
 
 const permissions: Record<Role, ReadonlySet<Action>> = {
   super_admin: new Set(full),
   school_admin: new Set(full),
-  principal: new Set([
-    "school:read",
-    "command:read",
-    "academics:read",
-    "academics:write",
-    "attendance:read",
-    "operations:read",
-    "operations:write",
-    "meeting:write",
-    "reports:read",
-    "student:read",
-    "student:sensitive-read",
-    "intervention:read",
-    "intervention:write",
-    "intervention:close",
-    "vision:read",
-    "vision:review",
-    "audit:read",
-  ]),
-  coordinator: new Set([
-    "school:read",
-    "command:read",
-    "academics:read",
-    "academics:write",
-    "attendance:read",
-    "operations:read",
-    "operations:write",
-    "meeting:write",
-    "reports:read",
-    "student:read",
-    "student:sensitive-read",
-    "assessment:write",
-    "attendance:write",
-    "intervention:read",
-    "intervention:write",
-    "intervention:close",
-  ]),
-  teacher: new Set([
-    "school:read",
-    "academics:read",
-    "academics:write",
-    "attendance:read",
-    "operations:read",
-    "meeting:write",
-    "student:read",
-    "assessment:write",
-    "attendance:write",
-    "intervention:read",
-    "intervention:write",
-  ]),
-  counselor: new Set([
-    "school:read",
-    "attendance:read",
-    "student:read",
-    "student:sensitive-read",
-    "intervention:read",
-    "intervention:write",
-    "intervention:close",
-  ]),
-  it_admin: new Set([
-    "school:read",
-    "operations:read",
-    "operations:write",
-    "import:write",
-    "audit:read",
-    "settings:write",
-    "vision:read",
-  ]),
+  principal: new Set(["school:read", "command:read", "academics:read", "academics:write", "attendance:read", "operations:read", "operations:write", "meeting:write", "reports:read", "student:read", "student:sensitive-read", "intervention:read", "intervention:write", "intervention:close", "vision:read", "vision:review", "audit:read", "aip:use", "forecast:read", "studio:read"]),
+  coordinator: new Set(["school:read", "command:read", "academics:read", "academics:write", "attendance:read", "operations:read", "operations:write", "meeting:write", "reports:read", "student:read", "student:sensitive-read", "assessment:write", "attendance:write", "intervention:read", "intervention:write", "intervention:close", "aip:use", "forecast:read", "studio:read"]),
+  teacher: new Set(["school:read", "academics:read", "academics:write", "attendance:read", "operations:read", "meeting:write", "student:read", "assessment:write", "attendance:write", "intervention:read", "intervention:write", "aip:use"]),
+  counselor: new Set(["school:read", "attendance:read", "student:read", "student:sensitive-read", "intervention:read", "intervention:write", "intervention:close", "aip:use"]),
+  it_admin: new Set(["school:read", "operations:read", "operations:write", "import:write", "audit:read", "settings:write", "vision:read", "vision:review", "studio:read", "studio:write", "connector:manage"]),
   student: new Set(["school:read", "self:read"]),
   parent: new Set(["school:read", "dependent:read"]),
 };
@@ -143,10 +68,7 @@ export function assertCan(role: Role, action: Action): void {
 
 export type Scope = { grades?: string[]; classIds?: string[]; subjectIds?: string[] };
 
-export function scopeAllows(
-  scope: Scope | undefined,
-  target: { grade?: string; classId?: string; subjectId?: string },
-): boolean {
+export function scopeAllows(scope: Scope | undefined, target: { grade?: string; classId?: string; subjectId?: string }): boolean {
   if (!scope) return true;
   if (scope.grades?.length && target.grade && !scope.grades.includes(target.grade)) return false;
   if (scope.classIds?.length && target.classId && !scope.classIds.includes(target.classId)) return false;
