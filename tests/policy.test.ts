@@ -16,6 +16,22 @@ describe("Orynt policy", () => {
     expect(can("parent", "command:read")).toBe(false);
   });
 
+  it("grants operational writes only to authorized staff roles", () => {
+    expect(can("principal", "operations:write")).toBe(true);
+    expect(can("coordinator", "operations:write")).toBe(true);
+    expect(can("it_admin", "operations:write")).toBe(true);
+    expect(can("teacher", "operations:write")).toBe(false);
+    expect(can("parent", "operations:write")).toBe(false);
+    expect(can("student", "operations:write")).toBe(false);
+  });
+
+  it("allows scoped teaching roles to record curriculum and meeting progress", () => {
+    expect(can("teacher", "academics:write")).toBe(true);
+    expect(can("teacher", "meeting:write")).toBe(true);
+    expect(can("coordinator", "academics:write")).toBe(true);
+    expect(can("principal", "meeting:write")).toBe(true);
+  });
+
   it("enforces grade scope", () => {
     expect(scopeAllows({ grades: ["9", "10"] }, { grade: "10" })).toBe(true);
     expect(scopeAllows({ grades: ["9", "10"] }, { grade: "12" })).toBe(false);
