@@ -5,7 +5,7 @@ ALLOWED = {"crowding", "after_hours_occupancy", "restricted_zone_entry", "possib
 
 def emit(base, token, camera, zone, event_type, confidence, metadata):
     if event_type not in ALLOWED:
-        return
+        return False
     payload = {
         "cameraExternalId": camera,
         "zone": zone,
@@ -14,12 +14,17 @@ def emit(base, token, camera, zone, event_type, confidence, metadata):
         "occurredAt": dt.datetime.now(dt.timezone.utc).isoformat(),
         "metadata": metadata,
     }
-    requests.post(
-        base.rstrip("/") + "/api/vision/edge/events",
-        json=payload,
-        headers={"x-orynt-edge-token": token},
-        timeout=8,
-    ).raise_for_status()
+    endpoint = base.rstrip("/") + "/api/vision/edge/events"
+    for attempt in range(3):
+        try:
+            response = requests.post(endpoint, json=payload, headers={"x-orynt-edge-token": token}, timeout=8)
+            response.raise_for_status()
+            return True
+        except requests.RequestException as error:
+            print(f"Orynt Edge delivery failed ({attempt + 1}/3) for {camera}/{event_type}: {error}", flush=True)
+            if attempt < 2:
+                time.sleep(1.5 * (2 ** attempt))
+    return False
 
 def outside_hours(now):
     return now.hour < 6 or now.hour >= 20
@@ -34,8 +39,8 @@ def run_camera(model, predict_lock, base, token, cfg, stride):
         ok, image = cap.read()
         if not ok:
             if not outage_sent:
-                emit(base, token, cfg["id"], cfg["zone"], "camera_outage", 1.0, {"privacy": "no-face-recognition"})
-                outage_sent = True
+                delivered = emit(base, token, cfg["id"], cfg["zone"], "camera_outage", 1.0, {"privacy": "no-face-recognition", "basis": "camera_health"})
+                outage_sent = delivered
             time.sleep(2)
             cap.release()
             cap = cv2.VideoCapture(url)
@@ -44,8 +49,6 @@ def run_camera(model, predict_lock, base, token, cfg, stride):
         frame += 1
         if frame % stride:
             continue
-        # Ultralytics model objects are shared for memory efficiency; serialize inference
-        # so multiple RTSP reader threads cannot race inside one model instance.
         with predict_lock:
             result = model.predict(image, classes=[0], verbose=False)[0]
         boxes = result.boxes.xyxy.cpu().numpy() if result.boxes is not None else []
@@ -53,11 +56,11 @@ def run_camera(model, predict_lock, base, token, cfg, stride):
         now = dt.datetime.now()
         candidates = []
         if count >= int(cfg.get("crowd_threshold", 15)):
-            candidates.append(("crowding", min(1.0, count / max(1, int(cfg.get("crowd_threshold", 15)))), {"person_count": count}))
+            candidates.append(("crowding", min(1.0, count / max(1, int(cfg.get("crowd_threshold", 15)))), {"person_count": count, "basis": "person_count"}))
         if count and cfg.get("restricted", False):
-            candidates.append(("restricted_zone_entry", .8, {"person_count": count}))
+            candidates.append(("restricted_zone_entry", .8, {"person_count": count, "basis": "zone_rule"}))
         if count and outside_hours(now):
-            candidates.append(("after_hours_occupancy", .85, {"person_count": count}))
+            candidates.append(("after_hours_occupancy", .85, {"person_count": count, "basis": "zone_rule"}))
         for x1, y1, x2, y2 in boxes:
             width = max(1, x2 - x1)
             height = max(1, y2 - y1)
@@ -67,8 +70,9 @@ def run_camera(model, predict_lock, base, token, cfg, stride):
         for kind, confidence, meta in candidates:
             if time.time() - last_event.get(kind, 0) < 30:
                 continue
-            emit(base, token, cfg["id"], cfg["zone"], kind, confidence, {**meta, "privacy": "ephemeral-person-detection", "identity_tracking": False})
-            last_event[kind] = time.time()
+            delivered = emit(base, token, cfg["id"], cfg["zone"], kind, confidence, {**meta, "privacy": "ephemeral-person-detection", "identity_tracking": False})
+            if delivered:
+                last_event[kind] = time.time()
 
 def main():
     path = os.environ.get("ORYNT_EDGE_CONFIG", "config.yml")
@@ -79,11 +83,7 @@ def main():
     predict_lock = threading.Lock()
     threads = []
     for camera in cfg.get("cameras", []):
-        worker = threading.Thread(
-            target=run_camera,
-            args=(model, predict_lock, cfg["orynt_url"], token, camera, int(cfg.get("frame_stride", 5))),
-            daemon=True,
-        )
+        worker = threading.Thread(target=run_camera, args=(model, predict_lock, cfg["orynt_url"], token, camera, int(cfg.get("frame_stride", 5))), daemon=True)
         worker.start()
         threads.append(worker)
     while True:
