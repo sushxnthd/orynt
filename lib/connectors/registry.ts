@@ -1,20 +1,6 @@
 export type ConnectorKind = "fedena" | "oneroster" | "edfi" | "generic-rest" | "teachmint-assisted" | "entab-assisted" | "edunext-assisted";
-
-export type ConnectorConfig = {
-  kind: ConnectorKind;
-  baseUrl: string;
-  token?: string;
-  endpoint?: string;
-};
-
-export type ConnectorDefinition = {
-  kind: ConnectorKind;
-  name: string;
-  mode: "verified-api" | "standard-api" | "assisted";
-  entities: string[];
-  note: string;
-};
-
+export type ConnectorConfig = { kind: ConnectorKind; baseUrl: string; token?: string; endpoint?: string };
+export type ConnectorDefinition = { kind: ConnectorKind; name: string; mode: "verified-api" | "standard-api" | "assisted"; entities: string[]; note: string };
 export const connectorCatalog: ConnectorDefinition[] = [
   { kind: "fedena", name: "Fedena", mode: "verified-api", entities: ["students"], note: "Uses Fedena's documented token-authenticated REST API." },
   { kind: "oneroster", name: "OneRoster 1.2", mode: "standard-api", entities: ["students", "classes", "courses", "enrollments"], note: "Standards-based adapter; endpoint paths can be overridden for vendor deployments." },
@@ -24,45 +10,7 @@ export const connectorCatalog: ConnectorDefinition[] = [
   { kind: "edunext-assisted", name: "Edunext", mode: "assisted", entities: ["students", "attendance", "assessments"], note: "Uses school/vendor-provided API or export contract." },
   { kind: "generic-rest", name: "Generic REST", mode: "assisted", entities: ["custom"], note: "Admin-specified HTTPS endpoint with explicit mapping." },
 ];
-
-function isPrivateHost(hostname: string) {
-  const host = hostname.toLowerCase();
-  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) return true;
-  if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)) return true;
-  const match = host.match(/^172\.(\d+)\./);
-  if (match && Number(match[1]) >= 16 && Number(match[1]) <= 31) return true;
-  if (host === "::1" || host === "0.0.0.0") return true;
-  return false;
-}
-
-export function safeConnectorUrl(baseUrl: string, path = "") {
-  const base = new URL(baseUrl);
-  if (base.protocol !== "https:") throw new Error("connector_requires_https");
-  if (base.username || base.password || isPrivateHost(base.hostname)) throw new Error("connector_url_not_allowed");
-  const allowlist = (process.env.CONNECTOR_HOST_ALLOWLIST ?? "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
-  if (allowlist.length && !allowlist.includes(base.hostname.toLowerCase())) throw new Error("connector_host_not_allowlisted");
-  return new URL(path || "/", base).toString();
-}
-
-export async function connectorRequest(config: ConnectorConfig, entity = "students") {
-  let path = config.endpoint;
-  const headers: Record<string, string> = { accept: "application/json, application/xml, text/xml;q=0.9, */*;q=0.5" };
-  if (config.kind === "fedena") {
-    path ??= entity === "students" ? "/api/students" : `/api/${entity}`;
-    if (!config.token) throw new Error("connector_token_required");
-    headers.authorization = `Token token="${config.token}"`;
-  } else if (config.kind === "oneroster") {
-    path ??= `/ims/oneroster/rostering/v1p2/${entity}`;
-    if (config.token) headers.authorization = `Bearer ${config.token}`;
-  } else if (config.kind === "edfi") {
-    path ??= entity === "students" ? "/data/v3/ed-fi/students" : `/data/v3/ed-fi/${entity}`;
-    if (config.token) headers.authorization = `Bearer ${config.token}`;
-  } else {
-    if (!path) throw new Error("connector_endpoint_required");
-    if (config.token) headers.authorization = `Bearer ${config.token}`;
-  }
-  const url = safeConnectorUrl(config.baseUrl, path);
-  const response = await fetch(url, { headers, signal: AbortSignal.timeout(12000), redirect: "error" });
-  const text = await response.text();
-  return { ok: response.ok, status: response.status, contentType: response.headers.get("content-type") ?? "", preview: text.slice(0, 12000) };
-}
+function isPrivateHost(hostname: string) { const host = hostname.toLowerCase(); if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) return true; if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host)) return true; const match = host.match(/^172\.(\d+)\./); if (match && Number(match[1]) >= 16 && Number(match[1]) <= 31) return true; return host === "::1" || host === "0.0.0.0"; }
+export function safeConnectorUrl(baseUrl: string, path = "") { const base = new URL(baseUrl); if (base.protocol !== "https:") throw new Error("connector_requires_https"); if (base.username || base.password || isPrivateHost(base.hostname)) throw new Error("connector_url_not_allowed"); const allowlist = (process.env.CONNECTOR_HOST_ALLOWLIST ?? "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean); if (allowlist.length && !allowlist.includes(base.hostname.toLowerCase())) throw new Error("connector_host_not_allowlisted"); return new URL(path || "/", base).toString(); }
+export async function connectorFetch(config: ConnectorConfig, entity = "students") { let path = config.endpoint; const headers: Record<string, string> = { accept: "application/json, application/xml, text/xml;q=0.9, */*;q=0.5" }; if (config.kind === "fedena") { path ??= entity === "students" ? "/api/students" : `/api/${entity}`; if (!config.token) throw new Error("connector_token_required"); headers.authorization = `Token token="${config.token}"`; } else if (config.kind === "oneroster") { path ??= `/ims/oneroster/rostering/v1p2/${entity}`; if (config.token) headers.authorization = `Bearer ${config.token}`; } else if (config.kind === "edfi") { path ??= entity === "students" ? "/data/v3/ed-fi/students" : `/data/v3/ed-fi/${entity}`; if (config.token) headers.authorization = `Bearer ${config.token}`; } else { if (!path) throw new Error("connector_endpoint_required"); if (config.token) headers.authorization = `Bearer ${config.token}`; } const url = safeConnectorUrl(config.baseUrl, path); const response = await fetch(url, { headers, signal: AbortSignal.timeout(12000), redirect: "error" }); const body = await response.text(); if (body.length > 5_000_000) throw new Error("connector_response_too_large"); return { ok: response.ok, status: response.status, contentType: response.headers.get("content-type") ?? "", body }; }
+export async function connectorRequest(config: ConnectorConfig, entity = "students") { const result = await connectorFetch(config, entity); return { ok: result.ok, status: result.status, contentType: result.contentType, preview: result.body.slice(0, 12000) }; }

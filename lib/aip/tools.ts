@@ -1,8 +1,9 @@
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { Session } from "@/lib/auth/session";
 import { can } from "@/lib/auth/policy";
+import { getCommandData } from "@/lib/data/command";
 import { getDb } from "@/lib/db/client";
-import { interventions, signals, students, visionEvents } from "@/lib/db/schema";
+import { visionEvents } from "@/lib/db/schema";
 import { incidents, tasks } from "@/lib/db/extended-schema";
 import type { AipEvidence } from "./types";
 
@@ -12,13 +13,13 @@ export async function runAipTool(session: Session, tool: AipToolName, args: Reco
   const db = getDb();
   if (tool === "signals.list") {
     if (!can(session.role, "command:read")) throw new Error("permission_denied");
-    const rows = await db.select().from(signals).where(eq(signals.tenantId, session.tenantId)).orderBy(desc(signals.generatedAt)).limit(12);
-    return rows.map<AipEvidence>((row) => ({ type: "signal", id: row.id, label: `${row.title} · ${row.severity}`, detail: row.explanation }));
+    const data = await getCommandData(session.tenantId, session);
+    return data.signals.map<AipEvidence>((row) => ({ type: "signal", id: row.id, label: `${row.title} · ${row.severity}`, detail: row.explanation }));
   }
   if (tool === "interventions.list") {
     if (!can(session.role, "intervention:read")) throw new Error("permission_denied");
-    const rows = await db.select().from(interventions).where(eq(interventions.tenantId, session.tenantId)).orderBy(desc(interventions.createdAt)).limit(12);
-    return rows.map<AipEvidence>((row) => ({ type: "intervention", id: row.id, label: `${row.title} · ${row.status}`, detail: row.rationale }));
+    const data = await getCommandData(session.tenantId, session);
+    return data.interventions.map<AipEvidence>((row) => ({ type: "intervention", id: row.id, label: `${row.title} · ${row.status}`, detail: row.rationale }));
   }
   if (tool === "vision.list") {
     if (!can(session.role, "vision:read")) throw new Error("permission_denied");
@@ -27,17 +28,14 @@ export async function runAipTool(session: Session, tool: AipToolName, args: Reco
   }
   if (tool === "students.search") {
     if (!can(session.role, "student:read")) throw new Error("permission_denied");
-    const query = String(args.query ?? "").trim();
+    const query = String(args.query ?? "").trim().toLowerCase();
     if (query.length < 2) return [];
-    const terms = query.split(/\s+/).filter(Boolean).slice(0, 4);
-    const predicates = terms.flatMap((term) => [ilike(students.firstName, `%${term}%`), ilike(students.lastName, `%${term}%`)]);
-    const match = predicates.length ? or(...predicates) : undefined;
-    if (!match) return [];
-    const rows = await db.select().from(students).where(and(eq(students.tenantId, session.tenantId), match)).limit(10);
-    return rows.map<AipEvidence>((row) => ({ type: "student", id: row.id, label: `${row.firstName} ${row.lastName} · ${row.grade}${row.section}` }));
+    const data = await getCommandData(session.tenantId, session);
+    return data.students.filter((row) => row.name.toLowerCase().includes(query)).slice(0, 10).map<AipEvidence>((row) => ({ type: "student", id: row.id, label: `${row.name} · ${row.class}`, detail: row.focus }));
   }
   if (tool === "operations.summary") {
     if (!can(session.role, "operations:read")) throw new Error("permission_denied");
+    if (["teacher", "counselor", "student", "parent"].includes(session.role)) throw new Error("permission_denied");
     const [taskRows, incidentRows] = await Promise.all([
       db.select().from(tasks).where(eq(tasks.tenantId, session.tenantId)).orderBy(desc(tasks.createdAt)).limit(12),
       db.select().from(incidents).where(eq(incidents.tenantId, session.tenantId)).orderBy(desc(incidents.occurredAt)).limit(12),
