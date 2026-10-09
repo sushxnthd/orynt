@@ -1,11 +1,23 @@
+export type CalibrationStatus = "empirical" | "baseline";
+
 export type SeriesForecast = {
   estimate: number;
   low: number;
   high: number;
   slope: number;
-  calibrationStatus: "empirical" | "baseline";
+  calibrationStatus: CalibrationStatus;
   samples: number;
   modelVersion: "trend-conformal-v1";
+};
+
+export type NumericForecast = {
+  estimate: number;
+  low: number;
+  high: number;
+  slope: number;
+  calibrationStatus: CalibrationStatus;
+  samples: number;
+  modelVersion: "numeric-trend-envelope-v1";
 };
 
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value));
@@ -44,15 +56,22 @@ export function forecastSeries(values: number[], horizon = 1): SeriesForecast {
   const residuals = clean.map((value, index) => Math.abs(value - (model.intercept + model.slope * index)));
   const empirical = clean.length >= 8;
   const radius = empirical ? Math.max(1.5, quantile(residuals, 0.9)) : Math.max(4, quantile(residuals, 0.9) + 3);
-  return {
-    estimate: round(estimate),
-    low: round(clamp(estimate - radius)),
-    high: round(clamp(estimate + radius)),
-    slope: round(model.slope),
-    calibrationStatus: empirical ? "empirical" : "baseline",
-    samples: clean.length,
-    modelVersion: "trend-conformal-v1",
-  };
+  return { estimate: round(estimate), low: round(clamp(estimate - radius)), high: round(clamp(estimate + radius)), slope: round(model.slope), calibrationStatus: empirical ? "empirical" : "baseline", samples: clean.length, modelVersion: "trend-conformal-v1" };
+}
+
+export function forecastNumericSeries(values: number[], horizon = 1, options: { min?: number; max?: number } = {}): NumericForecast {
+  const min = options.min ?? Number.NEGATIVE_INFINITY;
+  const max = options.max ?? Number.POSITIVE_INFINITY;
+  const clean = values.filter(Number.isFinite).map((value) => clamp(value, min, max));
+  if (!clean.length) return { estimate: 0, low: 0, high: 0, slope: 0, calibrationStatus: "baseline", samples: 0, modelVersion: "numeric-trend-envelope-v1" };
+  const model = regression(clean);
+  const x = clean.length - 1 + Math.max(1, horizon);
+  const estimate = clamp(model.intercept + model.slope * x, min, max);
+  const residuals = clean.map((value, index) => Math.abs(value - (model.intercept + model.slope * index)));
+  const empirical = clean.length >= 8;
+  const scale = Math.max(1, quantile(clean.map(Math.abs), 0.5) * 0.1);
+  const radius = empirical ? Math.max(scale, quantile(residuals, 0.9)) : Math.max(scale * 2, quantile(residuals, 0.9) + scale);
+  return { estimate: round(estimate), low: round(clamp(estimate - radius, min, max)), high: round(clamp(estimate + radius, min, max)), slope: round(model.slope), calibrationStatus: empirical ? "empirical" : "baseline", samples: clean.length, modelVersion: "numeric-trend-envelope-v1" };
 }
 
 export function forecastReadiness(input: { academic: number[]; attendance: number[]; syllabus: number[]; horizon?: number }) {
@@ -63,10 +82,5 @@ export function forecastReadiness(input: { academic: number[]; attendance: numbe
   const estimate = academic.estimate * 0.5 + attendance.estimate * 0.2 + syllabus.estimate * 0.3;
   const low = academic.low * 0.5 + attendance.low * 0.2 + syllabus.low * 0.3;
   const high = academic.high * 0.5 + attendance.high * 0.2 + syllabus.high * 0.3;
-  return {
-    estimate: round(estimate), low: round(low), high: round(high),
-    calibrationStatus: [academic, attendance, syllabus].every((part) => part.calibrationStatus === "empirical") ? "empirical" as const : "baseline" as const,
-    modelVersion: "readiness-ensemble-v1",
-    components: { academic, attendance, syllabus },
-  };
+  return { estimate: round(estimate), low: round(low), high: round(high), calibrationStatus: [academic, attendance, syllabus].every((part) => part.calibrationStatus === "empirical") ? "empirical" as const : "baseline" as const, modelVersion: "readiness-ensemble-v1", samples: academic.samples + attendance.samples + syllabus.samples, components: { academic, attendance, syllabus } };
 }
