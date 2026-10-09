@@ -1,0 +1,15 @@
+orynt_url: https://orynt.example.com
+edge_token_env: ORYNT_EDGE_TOKEN
+model: yolov8n.pt
+frame_stride: 5
+cameras:
+  - id: gate-1
+    url_env: CAMERA_GATE_1_RTSP
+    zone: Main gate
+    crowd_threshold: 18
+    restricted: false
+  - id: lab-corridor
+    url_env: CAMERA_LAB_RTSP
+    zone: Lab corridor
+    crowd_threshold: 10
+    restricted: true

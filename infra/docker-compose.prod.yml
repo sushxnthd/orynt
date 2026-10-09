@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: orynt
+      POSTGRES_DB: orynt
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U orynt -d orynt"], interval: 10s, timeout: 5s, retries: 10 }
+    networks: ["internal"]
+  app:
+    build: { context: "..", dockerfile: "Dockerfile" }
+    restart: unless-stopped
+    env_file: ["../.env.production"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck: { test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health/ready"], interval: 30s, timeout: 5s, retries: 5 }
+    networks: ["internal"]
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment: { ORYNT_DOMAIN: "${ORYNT_DOMAIN}" }
+    ports: ["80:80", "443:443"]
+    volumes: ["./Caddyfile:/etc/caddy/Caddyfile:ro", "caddy_data:/data", "caddy_config:/config"]
+    depends_on: ["app"]
+    networks: ["internal"]
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_RETENTION_DAYS: 14
+    volumes: ["./backup.sh:/backup.sh:ro", "backups:/backups"]
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["while true; do /backup.sh; sleep 86400; done"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: ["internal"]
+networks: { internal: {} }
+volumes: { postgres_data: {}, backups: {}, caddy_data: {}, caddy_config: {} }
