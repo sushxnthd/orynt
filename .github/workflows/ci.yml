@@ -38,6 +38,16 @@ jobs:
         run: pnpm db:push --force
       - name: Seed synthetic tenant
         run: pnpm db:seed
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+      - name: Validate Vision edge syntax
+        run: python -m py_compile edge/vision/orynt_edge.py
+      - name: Validate production compose
+        run: |
+          cp .env.production.example .env.production
+          docker compose --env-file .env.production -f infra/docker-compose.prod.yml config >/dev/null
+          rm .env.production
+      - name: Production build
+        run: pnpm build
